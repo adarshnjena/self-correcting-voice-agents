@@ -1,0 +1,13 @@
+openai==1.12.0
+python-dotenv==1.0.0
+numpy==1.26.1
+pandas==2.1.1
+pydantic==2.5.2
+fastapi==0.104.1
+uvicorn==0.23.2
+pytest==7.4.3
+jinja2==3.1.2
+matplotlib==3.8.1
+scipy==1.11.3
+audio-recorder-streamlit==0.0.8
+streamlit==1.28.1 
