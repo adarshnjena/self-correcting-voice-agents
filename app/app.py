@@ -35,9 +35,34 @@ if "latest_feedback" not in st.session_state:
     st.session_state.latest_feedback = None
 if "test_conversations" not in st.session_state:
     st.session_state.test_conversations = []
+if "realtime_conv_container" not in st.session_state:
+    st.session_state.realtime_conv_container = None
+if "current_tab" not in st.session_state:
+    st.session_state.current_tab = 0  # Default to first tab
 
 # Main header
 st.title("🤖 Self-Correcting Debt Collection Voice Agent System")
+
+# Main content area with tabs - define tabs first before they're referenced in button handlers
+tab_labels = ["Current Script", "Test Results", "Improvement History", "Conversations", "Live Conversation"]
+tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_labels)
+
+# Auto-select the tab based on session state
+if st.session_state.current_tab != 0:
+    selected_tab = st.session_state.current_tab
+    # Reset to default after use
+    st.session_state.current_tab = 0
+    # This JavaScript auto-clicks the selected tab
+    tab_index = selected_tab  # 0-based index
+    st.markdown(f"""
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {{
+            setTimeout(function() {{
+                document.querySelectorAll('button[data-baseweb="tab"]')[{tab_index}].click();
+            }}, 100);
+        }});
+    </script>
+    """, unsafe_allow_html=True)
 
 # Sidebar with controls
 with st.sidebar:
@@ -69,43 +94,90 @@ with st.sidebar:
     # Run buttons
     if st.button("🧪 Run Test Iteration", disabled=not api_key_provided):
         try:
-            with st.spinner("Testing current script with generated personas..."):
-                # Generate test personas
-                personas = persona_generator.generate_personas(count=num_personas)
+            # Set current tab to Conversations (index 3)
+            st.session_state.current_tab = 3
+            
+            # Create a placeholder for real-time updates
+            progress_placeholder = st.empty()
+            progress_placeholder.info("Starting test iteration...")
+            
+            # Generate test personas
+            progress_placeholder.info("Generating test personas...")
+            personas = persona_generator.generate_personas(count=num_personas)
+            progress_placeholder.success(f"Generated {len(personas)} test personas")
+            
+            # Run simulated conversations
+            test_conversations = []
+            
+            # Clear existing conversations and display new ones in the Conversations tab
+            with tab4:
+                st.session_state.realtime_conv_container = st.container()
+            
+            for i, persona in enumerate(personas, 1):
+                progress_placeholder.info(f"Simulating conversation {i}/{len(personas)} with {persona.name}...")
                 
-                # Run simulated conversations
-                test_conversations = []
-                for persona in personas:
-                    conversation = conversation_simulator.simulate_conversation(
-                        agent_script=st.session_state.current_script,
-                        customer_persona=persona,
-                        max_turns=15  # Using a default value since this is required parameter
-                    )
-                    test_conversations.append(conversation)
-                
-                # Evaluate performance
-                metrics = performance_evaluator.evaluate_conversations(test_conversations)
-                
-                # Generate improvement feedback
-                feedback = performance_evaluator.generate_improvement_feedback(
-                    test_conversations, metrics
-                )
-                
-                # Update session state
-                st.session_state.latest_metrics = metrics
-                st.session_state.latest_feedback = feedback
-                st.session_state.test_conversations = test_conversations
-                
-                # Add to history
-                history_entry = {
-                    "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "script_version": st.session_state.current_script.version,
-                    "metrics": metrics,
-                    "feedback_summary": feedback.get("general_feedback", "")[:100] + "..."
-                }
-                st.session_state.iteration_history.append(history_entry)
-                
-                st.success("Test iteration completed successfully!")
+                # Display persona details in the Conversations tab
+                with tab4:
+                    with st.session_state.realtime_conv_container:
+                        st.subheader(f"Conversation with {persona.name}")
+                        st.write(f"Age: {persona.age}, Occupation: {persona.occupation}")
+                        st.write(f"Debt Amount: ${persona.debt_amount:.2f}, Months Behind: {persona.months_behind}")
+                        st.write(f"Willingness to Pay: {int(persona.willingness_to_pay * 100)}%")
+                        
+                        # Create a placeholder for conversation messages
+                        msg_placeholder = st.empty()
+                        messages_area = msg_placeholder.container()
+                        
+                        # Create a callback function to update UI with each message
+                        def message_callback(role, content):
+                            with messages_area:
+                                if role == "agent":
+                                    st.markdown(f"**Agent:** {content}")
+                                else:
+                                    st.markdown(f"**Customer:** {content}")
+                        
+                        # Pass the callback to conversation simulator
+                        conversation = conversation_simulator.simulate_conversation(
+                            agent_script=st.session_state.current_script,
+                            customer_persona=persona,
+                            max_turns=15,
+                            message_callback=message_callback  # Pass the callback function
+                        )
+                        
+                        test_conversations.append(conversation)
+                        st.markdown("---")  # Add separator between conversations
+            
+            # Evaluate performance
+            progress_placeholder.info("Evaluating performance metrics...")
+            metrics = performance_evaluator.evaluate_conversations(test_conversations)
+            
+            # Generate improvement feedback
+            progress_placeholder.info("Generating improvement feedback...")
+            feedback = performance_evaluator.generate_improvement_feedback(
+                test_conversations, metrics
+            )
+            
+            # Update session state
+            st.session_state.latest_metrics = metrics
+            st.session_state.latest_feedback = feedback
+            st.session_state.test_conversations = test_conversations
+            
+            # Add to history
+            history_entry = {
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "script_version": st.session_state.current_script.version,
+                "metrics": metrics,
+                "feedback_summary": feedback.get("general_feedback", "")[:100] + "..."
+            }
+            st.session_state.iteration_history.append(history_entry)
+            
+            # Reset the realtime container so conversations appear in the expanders next time
+            st.session_state.realtime_conv_container = None
+            
+            progress_placeholder.success("Test iteration completed successfully!")
+            
+            # Switch to the Test Results tab to show metrics
+            tab2.write("Test completed! Check the 'Conversations' tab to see all conversations.")
         except Exception as e:
             st.error(f"Error during test iteration: {str(e)}")
             import traceback
@@ -130,9 +202,6 @@ with st.sidebar:
                 st.exception(f"Detailed error: {traceback.format_exc()}")
         else:
             st.error("Run a test iteration first to generate feedback")
-
-# Main content area with tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Current Script", "Test Results", "Improvement History", "Conversations", "Live Conversation"])
 
 # Tab 1: Current Script
 with tab1:
@@ -159,6 +228,9 @@ with tab2:
                 "Metric": list(st.session_state.latest_metrics.keys()),
                 "Value": list(st.session_state.latest_metrics.values())
             })
+            
+            # Convert Value column to numeric to avoid string comparison issues
+            metrics_df["Value"] = pd.to_numeric(metrics_df["Value"], errors="coerce")
             
             # Create a styled dataframe with different styling for repetition_rate
             styled_df = metrics_df.style
@@ -281,6 +353,11 @@ with tab3:
             
             metric_df = pd.DataFrame(metric_history)
             
+            # Convert metric columns to numeric to avoid string comparison issues
+            for metric in ["repetition_rate", "negotiation_effectiveness", "resolution_rate", "compliance_score"]:
+                if metric in metric_df.columns:
+                    metric_df[metric] = pd.to_numeric(metric_df[metric], errors="coerce")
+            
             # Plot
             fig, ax = plt.subplots(figsize=(12, 6))
             
@@ -303,7 +380,13 @@ with tab3:
 with tab4:
     st.header("Test Conversations")
     
-    if st.session_state.test_conversations:
+    # If we're showing real-time conversations during simulation
+    if st.session_state.realtime_conv_container is not None:
+        st.subheader("🔄 Test in Progress - Watching Conversations in Real-time")
+        # Real-time conversations will show up here via the container in st.session_state.realtime_conv_container
+    # If there's no active real-time conversation display and we have test conversations
+    elif st.session_state.test_conversations:
+        st.subheader("📚 Previous Test Results")
         for i, conversation in enumerate(st.session_state.test_conversations):
             with st.expander(f"Conversation with {conversation.customer_persona.name} (Willingness to pay: {conversation.customer_persona.willingness_to_pay:.2f})"):
                 st.subheader("Customer Persona")

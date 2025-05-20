@@ -50,7 +50,12 @@ def improve_script(
     _add_new_sections(improved_script, feedback)
     
     # Save the improved script
-    save_script(improved_script, f"script_v{improved_script.version}.json")
+    filename = f"script_v{improved_script.version}.json"
+    save_success = save_script(improved_script, filename)
+    if save_success:
+        logger.info(f"Successfully saved improved script as {filename}")
+    else:
+        logger.error(f"Failed to save improved script as {filename}")
     
     return improved_script
 
@@ -251,7 +256,12 @@ def _improve_script_with_api(
         _add_new_sections(improved_script, feedback)
     
     # Save the improved script
-    save_script(improved_script, f"script_v{improved_script.version}.json")
+    filename = f"script_v{improved_script.version}.json"
+    save_success = save_script(improved_script, filename)
+    if save_success:
+        logger.info(f"Successfully saved API-improved script as {filename}")
+    else:
+        logger.error(f"Failed to save API-improved script as {filename}")
     
     return improved_script
 

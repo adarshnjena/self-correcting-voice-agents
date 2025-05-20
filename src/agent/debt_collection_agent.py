@@ -87,22 +87,31 @@ def save_script(script: DebtCollectionScript, filename: str) -> bool:
         True if successful, False otherwise
     """
     try:
+        # Ensure config directory exists
         os.makedirs("config", exist_ok=True)
         file_path = os.path.join("config", filename)
         
         # Convert the script to a dictionary and then to JSON
-        script_dict = script.model_dump()
+        script_dict = script.dict()
         
         # Handle nested ScriptSection objects
         script_json = json.dumps(script_dict, indent=2)
         
-        with open(file_path, "w") as file:
+        # Write to file with explicit encoding
+        with open(file_path, "w", encoding='utf-8') as file:
             file.write(script_json)
-            
-        logger.info(f"Script saved to {file_path}")
-        return True
+        
+        # Verify the file was created
+        if os.path.exists(file_path):
+            logger.info(f"Script successfully saved to {os.path.abspath(file_path)}")
+            return True
+        else:
+            logger.error(f"Failed to create file at {os.path.abspath(file_path)}")
+            return False
     except Exception as e:
-        logger.error(f"Error saving script: {e}")
+        logger.error(f"Error saving script to {os.path.abspath(os.path.join('config', filename))}: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return False
 
 def _create_default_script() -> DebtCollectionScript:
